@@ -95,10 +95,37 @@
   }
 
   /* Analyze button */
+  .camera-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .btn-camera, .btn-upload {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.9em;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .btn-camera {
+    background: #1a1200;
+    color: var(--gold);
+    border-color: #3a2a00;
+  }
+  .btn-camera:hover { background: #2a1a00; }
+  .btn-upload {
+    background: var(--card);
+    color: var(--muted);
+  }
+  .btn-upload:hover { background: #1e1e1e; color: var(--text); }
+
   .btn-analyze {
     width: 100%;
     padding: 16px;
-    margin-top: 16px;
+    margin-top: 10px;
     background: linear-gradient(135deg, #8b6914, var(--gold), #8b6914);
     background-size: 200%;
     color: #1a1a0a;
@@ -321,14 +348,19 @@
     <div class="header-sub">智能舌诊 · 体质辨识</div>
   </div>
 
-  <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+  <div class="upload-zone" id="uploadZone">
     <div id="uploadPrompt">
       <div class="upload-icon">👅</div>
       <div class="upload-text">点击或拖拽舌象图片上传</div>
       <div class="upload-hint">支持 JPG、PNG，建议自然光下拍摄</div>
     </div>
     <img id="tongueImg" style="display:none;" />
-    <input type="file" id="fileInput" class="upload-input" accept="image/*" onchange="handleFile(this)" />
+    <input type="file" id="fileInput" class="upload-input" accept="image/*" capture="environment" onchange="handleFile(this)" />
+  </div>
+
+  <div class="camera-row">
+    <button class="btn-camera" id="cameraBtn" onclick="openCamera()">📷 拍照上传</button>
+    <button class="btn-upload" onclick="document.getElementById('fileInput').click()">📁 从相册选择</button>
   </div>
 
   <button class="btn-analyze" id="analyzeBtn" onclick="analyzeTongue()">🔍 开始舌诊分析</button>
@@ -402,6 +434,97 @@ const DIET_ADVICE = {
 };
 
 let uploadedImage = null;
+let videoStream = null;
+
+// ====== Camera capture ======
+async function openCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    videoStream = stream;
+
+    // Create video preview
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.style.cssText = 'max-width:100%;max-height:260px;border-radius:12px;display:block;margin:0 auto;';
+
+    const zone = document.getElementById('uploadZone');
+    document.getElementById('uploadPrompt').style.display = 'none';
+    const oldVideo = document.getElementById('cameraPreview');
+    if (oldVideo) oldVideo.remove();
+
+    video.id = 'cameraPreview';
+    zone.querySelector('img').style.display = 'none';
+    zone.appendChild(video);
+
+    // Create capture button
+    let captureBtn = document.getElementById('captureBtn');
+    if (!captureBtn) {
+      captureBtn = document.createElement('button');
+      captureBtn.id = 'captureBtn';
+      captureBtn.textContent = '📸 拍照';
+      captureBtn.style.cssText = `
+        display:block; width: 90%; margin: 10px auto 0;
+        padding: 12px; background: var(--gold); color: #1a1a0a;
+        border: none; border-radius: 10px; font-size: 1em;
+        font-weight: bold; cursor: pointer;
+      `;
+      captureBtn.onclick = capturePhoto;
+      zone.appendChild(captureBtn);
+    } else {
+      captureBtn.style.display = 'block';
+    }
+
+    // Hide upload buttons while camera is open
+    document.querySelector('.camera-row').style.display = 'none';
+    document.getElementById('analyzeBtn').style.display = 'none';
+    document.getElementById('resetBtn').style.display = 'none';
+
+  } catch (err) {
+    alert('无法访问相机：' + err.message + '\n\n请允许相机权限，或使用"从相册选择"');
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cameraPreview');
+  if (!video || !video.srcObject) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+
+  const imageData = canvas.toDataURL('image/jpeg', 0.9);
+  stopCamera();
+
+  document.getElementById('tongueImg').src = imageData;
+  document.getElementById('tongueImg').style.display = 'block';
+  document.getElementById('uploadPrompt').style.display = 'none';
+
+  const captureBtn = document.getElementById('captureBtn');
+  if (captureBtn) captureBtn.style.display = 'none';
+
+  uploadedImage = imageData;
+  document.getElementById('analyzeBtn').style.display = 'block';
+  document.getElementById('resetBtn').style.display = 'block';
+  document.getElementById('resetBtn').style.display = 'none';
+  document.querySelector('.camera-row').style.display = 'flex';
+  document.getElementById('resultCard').style.display = 'none';
+}
+
+function stopCamera() {
+  if (videoStream) {
+    videoStream.getTracks().forEach(track => track.stop());
+    videoStream = null;
+  }
+  const video = document.getElementById('cameraPreview');
+  if (video) video.remove();
+  const captureBtn = document.getElementById('captureBtn');
+  if (captureBtn) captureBtn.remove();
+}
 
 // ====== File handling ======
 function handleFile(input) {
@@ -679,6 +802,7 @@ function displayResult(constitution, analysis) {
 }
 
 function resetAll() {
+  stopCamera();
   uploadedImage = null;
   document.getElementById('tongueImg').style.display = 'none';
   document.getElementById('uploadPrompt').style.display = 'block';
@@ -689,6 +813,7 @@ function resetAll() {
   document.getElementById('resultCard').style.display = 'none';
   document.getElementById('progressWrap').style.display = 'none';
   document.getElementById('fileInput').value = '';
+  document.querySelector('.camera-row').style.display = 'flex';
 }
 </script>
 
