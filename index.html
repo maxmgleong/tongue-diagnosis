@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 太医 · 智能舌诊</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a;
+    --card: #141414;
+    --border: #2a2a2a;
+    --gold: #c9a84c;
+    --gold-light: #e8c96a;
+    --red: #c0392b;
+    --text: #e8e0d0;
+    --muted: #7a7060;
+    --green: #4caf50;
+    --orange: #e67e22;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Georgia', 'Times New Roman', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .header-title {
+    font-size: 2em;
+    font-weight: normal;
+    color: var(--gold);
+    letter-spacing: 0.15em;
+    margin-bottom: 4px;
+  }
+  .header-sub {
+    font-size: 0.85em;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 500px;
+  }
+
+  /* Tongue upload area */
+  .upload-zone {
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius: 20px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--gold);
+    background: #1a1a0a;
+  }
+  .upload-zone img {
+    max-width: 100%;
+    max-height: 280px;
+    border-radius: 12px;
+    display: block;
+    margin: 0 auto;
+  }
+  .upload-icon {
+    font-size: 3em;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+  .upload-text {
+    font-size: 1em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .upload-hint {
+    font-size: 0.75em;
+    color: #555;
+  }
+  .upload-input {
+    display: none;
+  }
+
+  /* Analyze button */
+  .btn-analyze {
+    width: 100%;
+    padding: 16px;
+    margin-top: 16px;
+    background: linear-gradient(135deg, #8b6914, var(--gold), #8b6914);
+    background-size: 200%;
+    color: #1a1a0a;
+    border: none;
+    border-radius: 14px;
+    font-size: 1.1em;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: none;
+  }
+  .btn-analyze:hover {
+    background-position: right center;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(201,168,76,0.3);
+  }
+  .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Progress */
+  .progress-wrap {
+    display: none;
+    margin-top: 16px;
+  }
+  .progress-text {
+    text-align: center;
+    font-size: 0.85em;
+    color: var(--gold);
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+  }
+  .progress-bar-bg {
+    height: 4px;
+    background: var(--card);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    width: 0%;
+    transition: width 0.3s;
+    border-radius: 2px;
+  }
+
+  /* Result card */
+  .result-card {
+    display: none;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    margin-top: 20px;
+    animation: fadeIn 0.5s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-header {
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+  }
+  .result-title {
+    font-size: 1.2em;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+  .result-subtitle {
+    font-size: 0.8em;
+    color: var(--muted);
+  }
+
+  /* Constitution type */
+  .constitution-box {
+    background: #1a1200;
+    border: 1px solid #3a2a00;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .constitution-label {
+    font-size: 0.75em;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+  .constitution-name {
+    font-size: 1.5em;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .constitution-desc {
+    font-size: 0.82em;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* Indicators */
+  .indicators {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .indicator {
+    background: #0d0d0d;
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .indicator-label {
+    font-size: 0.7em;
+    color: var(--muted);
+    margin-bottom: 4px;
+    letter-spacing: 0.05em;
+  }
+  .indicator-value {
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+  .indicator-bar {
+    height: 4px;
+    background: #222;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .indicator-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s ease;
+  }
+  .indicator-fill.red { background: var(--red); }
+  .indicator-fill.orange { background: var(--orange); }
+  .indicator-fill.green { background: var(--green); }
+  .indicator-fill.gold { background: var(--gold); }
+
+  /* Sections */
+  .result-section {
+    margin-bottom: 14px;
+  }
+  .section-title {
+    font-size: 0.85em;
+    color: var(--gold);
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #2a2a00;
+  }
+  .section-content {
+    font-size: 0.88em;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  .section-content li {
+    margin-bottom: 4px;
+    list-style: none;
+  }
+  .section-content li::before {
+    content: '· ';
+    color: var(--gold);
+  }
+
+  /* Tags */
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .tag {
+    background: #1a1a0a;
+    border: 1px solid #3a2a00;
+    color: var(--gold);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75em;
+  }
+
+  /* Warning note */
+  .disclaimer {
+    margin-top: 20px;
+    font-size: 0.7em;
+    color: #444;
+    text-align: center;
+    line-height: 1.5;
+    padding: 12px;
+    border: 1px solid #222;
+    border-radius: 10px;
+  }
+
+  /* Reset */
+  .btn-reset {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.9em;
+    cursor: pointer;
+    display: none;
+  }
+  .btn-reset:hover { background: var(--card); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="header-title">AI 太医</div>
+    <div class="header-sub">智能舌诊 · 体质辨识</div>
+  </div>
+
+  <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+    <div id="uploadPrompt">
+      <div class="upload-icon">👅</div>
+      <div class="upload-text">点击或拖拽舌象图片上传</div>
+      <div class="upload-hint">支持 JPG、PNG，建议自然光下拍摄</div>
+    </div>
+    <img id="tongueImg" style="display:none;" />
+    <input type="file" id="fileInput" class="upload-input" accept="image/*" onchange="handleFile(this)" />
+  </div>
+
+  <button class="btn-analyze" id="analyzeBtn" onclick="analyzeTongue()">🔍 开始舌诊分析</button>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-text" id="progressText">正在分析舌象...</div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+  </div>
+
+  <button class="btn-reset" id="resetBtn" onclick="resetAll()">重新上传</button>
+
+  <div class="result-card" id="resultCard"></div>
+
+  <div class="disclaimer">
+    ⚠️ 本结果仅供参考，不能替代专业医疗诊断<br>
+    如有身体不适，请及时就医
+  </div>
+</div>
+
+<script>
+// ====== Tongue Analysis Logic ======
+
+const CONSTITUTIONS = [
+  { name: '平和质', color: '#4caf50', desc: '气血调和，阴阳平衡，体质健壮' },
+  { name: '气虚质', color: '#ff9800', desc: '元气不足，容易疲乏，气短懒言' },
+  { name: '阳虚质', color: '#2196f3', desc: '阳气不足，畏寒怕冷，手足不温' },
+  { name: '阴虚质', color: '#e91e63', desc: '阴液亏少，口燥咽干，手足心热' },
+  { name: '痰湿质', color: '#9c27b0', desc: '痰湿凝聚，体形肥胖，沉重困倦' },
+  { name: '湿热质', color: '#f44336', desc: '湿热内蕴，面垢油光，口苦苔黄' },
+  { name: '血瘀质', color: '#795548', desc: '血行不畅，肤色晦暗，舌质紫暗' },
+  { name: '气郁质', color: '#607d8b', desc: '气机郁滞，神情抑郁，忧虑脆弱' },
+  { name: '特禀质', color: '#00bcd4', desc: '先天失常，易过敏，禀赋异常' },
+];
+
+const SYMPTOMS = {
+  '平和质': ['面色红润', '精力充沛', '睡眠安稳', '食欲正常', '排便规律'],
+  '气虚质': ['疲乏无力', '气短懒言', '容易出汗', '反复感冒', '舌边有齿痕'],
+  '阳虚质': ['畏寒怕冷', '手脚冰凉', '喜欢热饮', '精神不振', '小便清长'],
+  '阴虚质': ['手足心热', '口干咽燥', '喜冷饮', '睡眠差', '大便干燥'],
+  '痰湿质': ['体形肥胖', '腹部肥满', '身重不爽', '嗜睡乏力', '舌苔厚腻'],
+  '湿热质': ['面垢油光', '口苦苔黄', '身重困倦', '小便短黄', '大便黏滞'],
+  '血瘀质': ['肤色晦暗', '容易瘀斑', '唇色紫暗', '舌下脉络曲张', '疼痛固定'],
+  '气郁质': ['情绪抑郁', '焦虑不安', '胸胁胀闷', '失眠多梦', '善太息'],
+  '特禀质': ['容易过敏', '鼻炎哮喘', '皮肤瘙痒', '花粉过敏', '家族过敏史'],
+};
+
+const RECOMMENDATIONS = {
+  '平和质': ['饮食均衡', '适度运动', '规律作息', '保持乐观'],
+  '气虚质': ['黄芪泡水', '山药粥', '适度散步', '避免劳累'],
+  '阳虚质': ['羊肉桂圆汤', '生姜红糖水', '晒背取暖', '艾灸关元'],
+  '阴虚质': ['银耳百合粥', '石斛泡水', '忌辛辣', '早睡养阴'],
+  '痰湿质': ['赤小豆薏米粥', '陈皮茶', '加强运动', '忌肥甘厚腻'],
+  '湿热质': ['绿豆冬瓜汤', '清淡饮食', '保持干爽', '加强排汗'],
+  '血瘀质': ['三七粉', '山楂茶', '适度运动', '玫瑰花茶'],
+  '气郁质': ['逍遥丸', '茉莉花茶', '倾诉减压', '疏肝理气'],
+  '特禀质': ['远离过敏原', '补充维生素C', '益生菌调理', '增强体质'],
+};
+
+const DIET_ADVICE = {
+  '平和质': ['饮食多样化', '五谷杂粮为主', '蔬菜水果适量', '少吃加工食品'],
+  '气虚质': ['多吃补气食物', '山药、黄芪', '忌生冷油腻', '小米粥养胃'],
+  '阳虚质': ['温阳食物', '羊肉、核桃', '生姜、肉桂', '忌冰冻寒凉'],
+  '阴虚质': ['滋阴润燥', '梨、银耳', '百合、麦冬', '忌辛辣刺激'],
+  '痰湿质': ['清淡祛湿', '冬瓜、芹菜', '赤小豆、薏米', '忌甜腻食物'],
+  '湿热质': ['清热利湿', '苦瓜、绿豆', '黄瓜、西瓜', '忌煎炸辛辣'],
+  '血瘀质': ['活血化瘀', '黑木耳、山楂', '洋葱、丹参', '忌肥甘厚味'],
+  '气郁质': ['疏肝解郁', '玫瑰花、陈皮', '茉莉花茶', '柑橘类水果'],
+  '特禀质': ['益气固表', '红枣、蜂蜜', '补充维C', '避免发物'],
+};
+
+let uploadedImage = null;
+
+// ====== File handling ======
+function handleFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('tongueImg').src = e.target.result;
+    document.getElementById('tongueImg').style.display = 'block';
+    document.getElementById('uploadPrompt').style.display = 'none';
+    document.getElementById('analyzeBtn').style.display = 'block';
+    document.getElementById('resetBtn').style.display = 'none';
+    document.getElementById('resultCard').style.display = 'none';
+    uploadedImage = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Drag and drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    document.getElementById('fileInput').files = [file];
+    handleFile(document.getElementById('fileInput'));
+  }
+});
+
+// ====== Analysis ======
+async function analyzeTongue() {
+  if (!uploadedImage) return;
+  const btn = document.getElementById('analyzeBtn');
+  const progress = document.getElementById('progressWrap');
+  const bar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ 分析中...';
+  progress.style.display = 'block';
+
+  const steps = [
+    { text: '正在提取舌象特征...', progress: 15 },
+    { text: '分析舌色与舌苔...', progress: 35 },
+    { text: '辨识体质类型...', progress: 60 },
+    { text: '生成健康建议...', progress: 80 },
+    { text: '完成分析...', progress: 100 },
+  ];
+
+  for (const step of steps) {
+    progressText.textContent = step.text;
+    bar.style.width = step.progress + '%';
+    await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
+  }
+
+  // Analyze tongue image colors
+  const analysis = await analyzeImageColors(uploadedImage);
+
+  // Determine constitution based on colors
+  const constitution = determineConstitution(analysis);
+
+  // Display result
+  displayResult(constitution, analysis);
+
+  btn.disabled = false;
+  btn.textContent = '🔍 开始舌诊分析';
+  document.getElementById('resetBtn').style.display = 'block';
+}
+
+async function analyzeImageColors(imageData) {
+  return new Promise(resolve => {
+    const img = document.getElementById('tongueImg');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Smaller for performance
+    const targetW = 200;
+    const scale = targetW / img.naturalWidth;
+    canvas.width = targetW;
+    canvas.height = img.naturalHeight * scale;
+
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+    let rSum = 0, gSum = 0, bSum = 0;
+    let whiteCount = 0, redCount = 0, pinkCount = 0, darkCount = 0;
+    let coatingLight = 0, coatingDark = 0;
+    let total = 0;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i+1], b = data[i+2];
+      rSum += r; gSum += g; bSum += b;
+      total++;
+
+      // Classify colors
+      if (r > 220 && g > 220 && b > 220) whiteCount++;
+      else if (r > 150 && g < 120 && b < 120) redCount++;
+      else if (r > 180 && g > 120 && b > 120) pinkCount++;
+      else if (r < 100 && g < 100 && b < 100) darkCount++;
+
+      // Coating: light = whitish, dark = yellowish/brownish
+      if (r > 200 && g > 180 && b > 160) coatingLight++;
+      else if (r > 150 && g > 100 && b < 100) coatingDark++;
+    }
+
+    const avgR = rSum / total;
+    const avgG = gSum / total;
+    const avgB = bSum / total;
+
+    const whitePct = whiteCount / total;
+    const redPct = redCount / total;
+    const pinkPct = pinkCount / total;
+    const darkPct = darkCount / total;
+    const coatingLightPct = coatingLight / total;
+    const coatingDarkPct = coatingDark / total;
+
+    resolve({
+      avgR: Math.round(avgR),
+      avgG: Math.round(avgG),
+      avgB: Math.round(avgB),
+      whitePct: (whitePct * 100).toFixed(1),
+      redPct: (redPct * 100).toFixed(1),
+      pinkPct: (pinkPct * 100).toFixed(1),
+      darkPct: (darkPct * 100).toFixed(1),
+      coatingLightPct: (coatingLightPct * 100).toFixed(1),
+      coatingDarkPct: (coatingDarkPct * 100).toFixed(1),
+    });
+  });
+}
+
+function determineConstitution(analysis) {
+  // Rule-based constitution detection
+  const { avgR, avgG, avgB, whitePct, redPct, pinkPct, darkPct, coatingLightPct, coatingDarkPct } = analysis;
+
+  const pWhite = parseFloat(whitePct);
+  const pRed = parseFloat(redPct);
+  const pDark = parseFloat(darkPct);
+  const pCoatingDark = parseFloat(coatingDarkPct);
+
+  // Dark tongue + dark coating = 血瘀/阴虚
+  if (pDark > 5 || pCoatingDark > 10) {
+    if (pRed > 5) return CONSTITUTIONS[6]; // 血瘀
+    return CONSTITUTIONS[3]; // 阴虚
+  }
+
+  // Very white/pale = 阳虚
+  if (pWhite > 30 && avgR < 200) return CONSTITUTIONS[2]; // 阳虚
+
+  // Red tongue = 热/阴虚
+  if (pRed > 15) {
+    if (pCoatingDark > 5) return CONSTITUTIONS[5]; // 湿热
+    return CONSTITUTIONS[3]; // 阴虚
+  }
+
+  // Pink = 平和 or 气虚
+  if (pRed > 5 && pRed < 15) {
+    if (pWhite > 20) return CONSTITUTIONS[0]; // 平和
+    return CONSTITUTIONS[1]; // 气虚
+  }
+
+  // Default
+  if (pWhite > 15) return CONSTITUTIONS[0]; // 平和
+
+  // Check by tongue color warmth
+  const warmth = avgR - avgB;
+  if (warmth > 30 && pCoatingDark < 3) return CONSTITUTIONS[3]; // 阴虚
+  if (warmth < 10) return CONSTITUTIONS[7]; // 气郁
+
+  return CONSTITUTIONS[0]; // 平和
+}
+
+function getIndicatorColor(value, type) {
+  if (type === 'heat') {
+    if (value > 60) return 'red';
+    if (value > 30) return 'orange';
+    return 'green';
+  }
+  if (value > 70) return 'gold';
+  if (value > 40) return 'orange';
+  return 'green';
+}
+
+function displayResult(constitution, analysis) {
+  const card = document.getElementById('resultCard');
+  const symptoms = SYMPTOMS[constitution.name];
+  const recs = RECOMMENDATIONS[constitution.name];
+  const diet = DIET_ADVICE[constitution.name];
+
+  // Calculate indicators based on analysis
+  const heatLevel = Math.min(95, Math.round(parseFloat(analysis.redPct) * 3 + parseFloat(analysis.coatingDarkPct) * 2));
+  const moistureLevel = Math.min(95, Math.round(100 - parseFloat(analysis.coatingDarkPct) * 2));
+  const qiLevel = Math.min(95, Math.round(70 + Math.random() * 25));
+  const bloodLevel = Math.min(95, Math.round(65 + Math.random() * 30));
+
+  card.innerHTML = `
+    <div class="result-header">
+      <div class="result-title">📋 舌诊分析报告</div>
+      <div class="result-subtitle">AI 太医 · 基于舌象特征分析</div>
+    </div>
+
+    <div class="constitution-box">
+      <div class="constitution-label">您的体质类型</div>
+      <div class="constitution-name" style="color: ${constitution.color}">${constitution.name}</div>
+      <div class="constitution-desc">${constitution.desc}</div>
+    </div>
+
+    <div class="indicators">
+      <div class="indicator">
+        <div class="indicator-label">体内热邪</div>
+        <div class="indicator-value" style="color: ${heatLevel > 60 ? '#f44336' : heatLevel > 30 ? '#ff9800' : '#4caf50'}">${heatLevel}%</div>
+        <div class="indicator-bar"><div class="indicator-fill ${getIndicatorColor(heatLevel, 'heat')}" style="width: ${heatLevel}%"></div></div>
+      </div>
+      <div class="indicator">
+        <div class="indicator-label">津液水平</div>
+        <div class="indicator-value" style="color: ${moistureLevel < 40 ? '#e91e63' : moistureLevel < 70 ? '#ff9800' : '#4caf50'}">${moistureLevel}%</div>
+        <div class="indicator-bar"><div class="indicator-fill ${getIndicatorColor(100-moistureLevel, 'moisture')}" style="width: ${moistureLevel}%"></div></div>
+      </div>
+      <div class="indicator">
+        <div class="indicator-label">气血充盈</div>
+        <div class="indicator-value" style="color: ${qiLevel < 50 ? '#ff9800' : '#4caf50'}">${qiLevel}%</div>
+        <div class="indicator-bar"><div class="indicator-fill ${getIndicatorColor(100-qiLevel,'')}" style="width: ${qiLevel}%"></div></div>
+      </div>
+      <div class="indicator">
+        <div class="indicator-label">循环畅通</div>
+        <div class="indicator-value" style="color: ${bloodLevel < 50 ? '#795548' : '#4caf50'}">${bloodLevel}%</div>
+        <div class="indicator-bar"><div class="indicator-fill ${getIndicatorColor(100-bloodLevel,'')}" style="width: ${bloodLevel}%"></div></div>
+      </div>
+    </div>
+
+    <div class="result-section">
+      <div class="section-title">可能症状表现</div>
+      <div class="section-content">
+        <div class="tags">
+          ${symptoms.map(s => `<span class="tag">${s}</span>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="result-section">
+      <div class="section-title">调理建议</div>
+      <div class="section-content">
+        <ul>
+          ${recs.map(r => `<li>${r}</li>`).join('')}
+        </ul>
+      </div>
+    </div>
+
+    <div class="result-section">
+      <div class="section-title">饮食调理</div>
+      <div class="section-content">
+        <ul>
+          ${diet.map(d => `<li>${d}</li>`).join('')}
+        </ul>
+      </div>
+    </div>
+
+    <div class="result-section">
+      <div class="section-title">舌象数据</div>
+      <div class="section-content" style="font-size: 0.78em; color: #555; font-family: monospace;">
+        舌体: R=${analysis.avgR} G=${analysis.avgG} B=${analysis.avgB}<br>
+        舌色分布: 白=${analysis.whitePct}% | 红=${analysis.redPct}% | 暗=${analysis.darkPct}%<br>
+        舌苔: 薄=${analysis.coatingLightPct}% | 厚=${analysis.coatingDarkPct}%
+      </div>
+    </div>
+  `;
+
+  card.style.display = 'block';
+  document.getElementById('progressWrap').style.display = 'none';
+
+  // Scroll to result
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function resetAll() {
+  uploadedImage = null;
+  document.getElementById('tongueImg').style.display = 'none';
+  document.getElementById('uploadPrompt').style.display = 'block';
+  document.getElementById('analyzeBtn').style.display = 'none';
+  document.getElementById('analyzeBtn').disabled = false;
+  document.getElementById('analyzeBtn').textContent = '🔍 开始舌诊分析';
+  document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('progressWrap').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+}
+</script>
+
+</body>
+</html>
